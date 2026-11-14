@@ -10,7 +10,7 @@ brain.** No laptop and no Raspberry on the booth. The phone/tablet runs the whol
 the controller stays the surface you touch.
 
 Expect it to be rough, to break, and to change without notice. Don't play a set
-you care about on it, and don't send its bugs to BiteDJ or Mixxx — they didn't
+you care about on it, and pls don't send its bugs to BiteDJ or Mixxx... they didn't
 write this port.
 
 ## Tested on
