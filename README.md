@@ -1,12 +1,12 @@
 # BiteDj for Android
 
-**[Download the APK](../../releases/latest/download/BiteDj-Android-djoshi-1.0-5.apk)** — very alpha, unofficial port of [BiteDJ](https://github.com/TeamDeckshark/bitedj)
+**[Download the APK](../../releases/latest/download/BiteDj-Android-djoshi-1.0-5.apk)** (very alpha, unofficial port of [BiteDJ](https://github.com/TeamDeckshark/bitedj))
 
 Experimental Android port of BiteDJ, a DJ app built on
 [Mixxx](https://github.com/mixxxdj/mixxx) with a widgets-only appliance UI.
 
 The goal: **turn a DJ controller into a standalone unit, with a phone as its
-brain.** No laptop on the booth — the phone runs the engine and the interface,
+brain.** No laptop and no Raspberry on the booth. The phone/tablet runs the whole engine and the interface,
 the controller stays the surface you touch.
 
 Expect it to be rough, to break, and to change without notice. Don't play a set
@@ -62,7 +62,7 @@ apksigner sign --ks your.keystore --out bitedj-android.apk \
 ## Making it run on your device
 
 - **UI clipped or too large:** add `ScaleFactor 0.8` under `[Config]` in
-  `/storage/emulated/0/bitedj-android/mixxx.cfg` (that value fitted the Edge 40
+  `/storage/emulated/0/bitedj-android/mixxx.cfg` (that value fitted my Edge 40
   Neo; try 0.7–0.9).
 - **No sound, or it refuses the device:** Settings → Audio. The Android backend
   opens one output clock and rejects format or rate conversion, so pick what your
@@ -84,6 +84,8 @@ apksigner sign --ks your.keystore --out bitedj-android.apk \
 - Android platform glue adapted from the community Mixxx Android port.
 
 BiteDJ's own documentation is kept in [README-BiteDJ.md](README-BiteDJ.md).
+
+thxxx <3
 
 ## License
 
