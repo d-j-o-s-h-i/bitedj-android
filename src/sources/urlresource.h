@@ -31,6 +31,11 @@ class UrlResource {
     }
 
     inline QString getLocalFileName() const {
+#ifdef Q_OS_ANDROID
+        if (m_url.scheme() == QLatin1String("content")) {
+            return m_url.toString(QUrl::FullyEncoded);
+        }
+#endif
         DEBUG_ASSERT(isLocalFile());
         return m_url.toLocalFile();
     }

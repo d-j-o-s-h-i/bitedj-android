@@ -1,0 +1,16 @@
+--- a/src/plugins/platforms/android/qandroidplatformtheme.cpp
++++ b/src/plugins/platforms/android/qandroidplatformtheme.cpp
+@@ -506,7 +506,12 @@
+ 
+ QIconEngine *QAndroidPlatformTheme::createIconEngine(const QString &iconName) const
+ {
+-    return new QAndroidPlatformIconEngine(iconName);
++    // The font-icon engine resolves a QFont in its constructor and crashes with a
++    // null pointer dereference on devices without a matching material icon font.
++    // Returning the base class behaviour (no themed icons) gives QIconLoader a
++    // null engine, so it falls back to its regular QIconLoaderEngine.
++    Q_UNUSED(iconName);
++    return nullptr;
+ }
+ 
+ QVariant QAndroidPlatformTheme::themeHint(ThemeHint hint) const

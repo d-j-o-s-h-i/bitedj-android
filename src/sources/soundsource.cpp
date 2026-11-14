@@ -14,6 +14,11 @@ const Logger kLogger("SoundSource");
 
 inline QUrl validateLocalFileUrl(QUrl url) {
     DEBUG_ASSERT(url.isValid());
+#ifdef Q_OS_ANDROID
+    if (url.scheme() == QLatin1String("content")) {
+        return url;
+    }
+#endif
     VERIFY_OR_DEBUG_ASSERT(url.isLocalFile()) {
         kLogger.warning()
                 << "Unsupported URL:"
@@ -26,6 +31,11 @@ inline QUrl validateLocalFileUrl(QUrl url) {
 
 //static
 QString SoundSource::getTypeFromUrl(const QUrl& url) {
+#ifdef Q_OS_ANDROID
+    if (url.scheme() == QLatin1String("content")) {
+        return getTypeFromFile(QFileInfo(url.toString(QUrl::FullyEncoded)));
+    }
+#endif
     const QString filePath = validateLocalFileUrl(url).toLocalFile();
     return getTypeFromFile(QFileInfo(filePath));
 }

@@ -50,6 +50,8 @@ class WWaveformViewer : public WWidget, public TrackDropTarget {
     void slotLoadingTrack(TrackPointer pNewTrack, TrackPointer pOldTrack);
 
   protected:
+    bool event(QEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
     void showEvent(QShowEvent* event) override;
     void resizeEvent(QResizeEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
@@ -79,6 +81,12 @@ class WWaveformViewer : public WWidget, public TrackDropTarget {
     parented_ptr<ControlProxy> m_pPassthroughEnabled;
     bool m_bScratching;
     bool m_bBending;
+    // Keep consuming the touch sequence after either pinch finger is lifted,
+    // so the remaining finger cannot start scratching without a new press.
+    bool m_bPinching{false};
+    int m_pinchFirstId{-1};
+    int m_pinchSecondId{-1};
+    double m_pinchDistance{0.0};
     bool m_bSeekDisabled;
     QPoint m_mouseAnchor;
     parented_ptr<WCueMenuPopup> m_pCueMenuPopup;

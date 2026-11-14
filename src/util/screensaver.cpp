@@ -21,6 +21,10 @@ https://github.com/awjackson/bsnes-classic/blob/038e2e051ffc8abe7c56a3bf27e3016c
 #include <QtGlobal>
 
 #include "util/assert.h"
+#ifdef Q_OS_ANDROID
+#include <QCoreApplication>
+#include <QJniObject>
+#endif
 
 #if defined(Q_OS_MACOS)
 #  include "util/mac.h"
@@ -146,6 +150,21 @@ void ScreenSaverHelper::uninhibitInternal()
     s_enabled = false;
 }
 
+#elif defined(Q_OS_ANDROID)
+void ScreenSaverHelper::triggerUserActivity() {
+}
+void ScreenSaverHelper::inhibitInternal() {
+    const auto context = QNativeInterface::QAndroidApplication::context();
+    QJniObject::callStaticMethod<void>("io/github/djoshi/bitedj/PlatformBridge", "keepScreenOn",
+            "(Landroid/content/Context;Z)V", context.object(), true);
+    s_enabled = true;
+}
+void ScreenSaverHelper::uninhibitInternal() {
+    const auto context = QNativeInterface::QAndroidApplication::context();
+    QJniObject::callStaticMethod<void>("io/github/djoshi/bitedj/PlatformBridge", "keepScreenOn",
+            "(Landroid/content/Context;Z)V", context.object(), false);
+    s_enabled = false;
+}
 #elif defined(Q_OS_LINUX)
 const char *SCREENSAVERS[][4] = {
     // org.freedesktop.ScreenSaver is the standard. should work for gnome and kde too, 

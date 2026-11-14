@@ -5,17 +5,35 @@
 
 #include <QFile>
 #include <memory>
+#include <type_traits>
 
 #include "track/taglib/trackmetadata.h"
 #include "track/taglib/trackmetadata_common.h"
 #include "util/logger.h"
 #include "util/safelywritablefile.h"
+#ifdef Q_OS_ANDROID
+#include "platform/android/androidplatform.h"
+#include "platform/android/documenttaglibstream.h"
+#endif
 
 namespace mixxx {
 
 namespace {
 
 Logger kLogger("MetadataSourceTagLib");
+
+template<class File>
+std::unique_ptr<File> openTagFile(const QString& fileName, TagLib::IOStream* stream) {
+    if (stream) {
+        if constexpr (std::is_same_v<File, TagLib::MPEG::File> ||
+                std::is_same_v<File, TagLib::FLAC::File>) {
+            return std::make_unique<File>(stream, TagLib::ID3v2::FrameFactory::instance());
+        } else {
+            return std::make_unique<File>(stream);
+        }
+    }
+    return std::make_unique<File>(TAGLIB_FILENAME_FROM_QSTRING(fileName));
+}
 
 // Workaround for missing functionality in TagLib 1.11.x that
 // doesn't support to read text chunks from AIFF files.
@@ -28,6 +46,8 @@ class AiffFile : public TagLib::RIFF::AIFF::File {
   public:
     explicit AiffFile(TagLib::FileName fileName)
             : TagLib::RIFF::AIFF::File(fileName) {
+    }
+    explicit AiffFile(TagLib::IOStream* stream) : TagLib::RIFF::AIFF::File(stream) {
     }
 
     bool importTrackMetadataFromTextChunks(TrackMetadata* pTrackMetadata) /*non-const*/ {
@@ -114,9 +134,20 @@ MetadataSourceTagLib::importTrackMetadataAndCoverImage(
     // from the same tag types. Only the first available tag type
     // is read and data in subsequent tags is ignored.
 
+    TagLib::IOStream* stream = nullptr;
+#ifdef Q_OS_ANDROID
+    std::unique_ptr<android::DocumentTaglibStream> documentStream;
+    if (m_fileName.startsWith(QLatin1String("content://"))) {
+        documentStream = std::make_unique<android::DocumentTaglibStream>(
+                android::AndroidPlatform::openDocument(m_fileName));
+        if (!documentStream->isOpen()) return afterImport(ImportResult::Failed);
+        stream = documentStream.get();
+    }
+#endif
     switch (m_fileType) {
     case taglib::FileType::MPEG: {
-        TagLib::MPEG::File file(TAGLIB_FILENAME_FROM_QSTRING(m_fileName));
+        auto tagFile = openTagFile<TagLib::MPEG::File>(m_fileName, stream);
+        auto& file = *tagFile;
         if (!taglib::readAudioPropertiesFromFile(pTrackMetadata, file)) {
             break;
         }
@@ -148,7 +179,8 @@ MetadataSourceTagLib::importTrackMetadataAndCoverImage(
         break;
     }
     case taglib::FileType::MP4: {
-        TagLib::MP4::File file(TAGLIB_FILENAME_FROM_QSTRING(m_fileName));
+        auto tagFile = openTagFile<TagLib::MP4::File>(m_fileName, stream);
+        auto& file = *tagFile;
         if (!taglib::readAudioPropertiesFromFile(pTrackMetadata, file)) {
             break;
         }
@@ -162,7 +194,8 @@ MetadataSourceTagLib::importTrackMetadataAndCoverImage(
         break;
     }
     case taglib::FileType::FLAC: {
-        TagLib::FLAC::File file(TAGLIB_FILENAME_FROM_QSTRING(m_fileName));
+        auto tagFile = openTagFile<TagLib::FLAC::File>(m_fileName, stream);
+        auto& file = *tagFile;
         if (!taglib::readAudioPropertiesFromFile(pTrackMetadata, file)) {
             break;
         }
@@ -203,7 +236,8 @@ MetadataSourceTagLib::importTrackMetadataAndCoverImage(
         break;
     }
     case taglib::FileType::OggVorbis: {
-        TagLib::Ogg::Vorbis::File file(TAGLIB_FILENAME_FROM_QSTRING(m_fileName));
+        auto tagFile = openTagFile<TagLib::Ogg::Vorbis::File>(m_fileName, stream);
+        auto& file = *tagFile;
         if (!taglib::readAudioPropertiesFromFile(pTrackMetadata, file)) {
             break;
         }
@@ -219,7 +253,8 @@ MetadataSourceTagLib::importTrackMetadataAndCoverImage(
         break;
     }
     case taglib::FileType::Opus: {
-        TagLib::Ogg::Opus::File file(TAGLIB_FILENAME_FROM_QSTRING(m_fileName));
+        auto tagFile = openTagFile<TagLib::Ogg::Opus::File>(m_fileName, stream);
+        auto& file = *tagFile;
         if (!taglib::readAudioPropertiesFromFile(pTrackMetadata, file)) {
             break;
         }
@@ -235,7 +270,8 @@ MetadataSourceTagLib::importTrackMetadataAndCoverImage(
         break;
     }
     case taglib::FileType::WavPack: {
-        TagLib::WavPack::File file(TAGLIB_FILENAME_FROM_QSTRING(m_fileName));
+        auto tagFile = openTagFile<TagLib::WavPack::File>(m_fileName, stream);
+        auto& file = *tagFile;
         if (!taglib::readAudioPropertiesFromFile(pTrackMetadata, file)) {
             break;
         }
@@ -249,7 +285,8 @@ MetadataSourceTagLib::importTrackMetadataAndCoverImage(
         break;
     }
     case taglib::FileType::WAV: {
-        TagLib::RIFF::WAV::File file(TAGLIB_FILENAME_FROM_QSTRING(m_fileName));
+        auto tagFile = openTagFile<TagLib::RIFF::WAV::File>(m_fileName, stream);
+        auto& file = *tagFile;
         if (!taglib::readAudioPropertiesFromFile(pTrackMetadata, file)) {
             break;
         }
@@ -269,7 +306,8 @@ MetadataSourceTagLib::importTrackMetadataAndCoverImage(
         break;
     }
     case taglib::FileType::AIFF: {
-        AiffFile file(TAGLIB_FILENAME_FROM_QSTRING(m_fileName));
+        auto tagFile = openTagFile<AiffFile>(m_fileName, stream);
+        auto& file = *tagFile;
         if (!taglib::readAudioPropertiesFromFile(pTrackMetadata, file)) {
             break;
         }
@@ -623,6 +661,11 @@ class AiffTagSaver : public TagSaver {
 std::pair<MetadataSource::ExportResult, QDateTime>
 MetadataSourceTagLib::exportTrackMetadata(
         const TrackMetadata& trackMetadata) const {
+#ifdef Q_OS_ANDROID
+    if (m_fileName.startsWith(QLatin1String("content://"))) {
+        return afterExport(ExportResult::Unsupported);
+    }
+#endif
     // Modifying an external file is a potentially dangerous operation.
     // If this operation unexpectedly crashes or corrupts data we need
     // to identify the file that is affected.

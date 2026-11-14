@@ -1,0 +1,15 @@
+# Toolchain downloads (Qt, NDK, SDK, native dependencies) and build trees.
+build/
+
+# Gradle scratch space for the generated APK project.
+.gradle/
+
+# Signing material and packaged APKs never belong in the repository. Create
+# your own key and pass it to apksigner when packaging a release.
+*.keystore
+*.jks
+*.apk
+*.aab
+
+# Local machine state written by the tools.
+environment.json

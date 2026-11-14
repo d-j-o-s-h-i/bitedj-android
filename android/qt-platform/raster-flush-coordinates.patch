@@ -1,0 +1,44 @@
+--- a/src/plugins/platforms/android/qandroidplatformintegration.cpp
++++ b/src/plugins/platforms/android/qandroidplatformintegration.cpp
+@@ -28,6 +28,7 @@
+ #include <QtGui/private/qeglpbuffer_p.h>
+ #include <QtGui/private/qguiapplication_p.h>
+ #include <QtGui/private/qoffscreensurface_p.h>
++#include <QtGui/private/qhighdpiscaling_p.h>
+ #include <QtGui/private/qrhibackingstore_p.h>
+ #include <qpa/qplatformoffscreensurface.h>
+ #include <qpa/qplatformwindow.h>
+@@ -45,6 +46,24 @@
+ QT_BEGIN_NAMESPACE
+ 
+ using namespace Qt::StringLiterals;
++
++class QAndroidRasterBackingStore : public QRhiBackingStore
++{
++public:
++    using QRhiBackingStore::QRhiBackingStore;
++
++    void flush(QWindow *flushedWindow, const QRegion &region, const QPoint &offset) override
++    {
++        // QBackingStore::flush supplies native pixel coordinates, whereas
++        // QRhiBackingStore forwards them to rhiFlush, which scales logical
++        // coordinates by the source DPR. Undo the first conversion so dirty
++        // regions and native child offsets are not scaled twice. Round the
++        // region outwards to retain every dirty pixel at fractional scales.
++        QRhiBackingStore::flush(flushedWindow,
++                QHighDpi::fromNativeLocalExposedRegion(region, window()),
++                QHighDpi::fromNativeLocalPosition(offset, window()));
++    }
++};
+ 
+ Q_CONSTINIT QSize QAndroidPlatformIntegration::m_defaultScreenSize = QSize(320, 455);
+ Q_CONSTINIT QRect QAndroidPlatformIntegration::m_defaultAvailableGeometry = QRect(0, 0, 320, 455);
+@@ -344,7 +363,7 @@
+     if (!QtAndroidPrivate::activity().isValid())
+         return nullptr;
+ 
+-    return new QRhiBackingStore(window);
++    return new QAndroidRasterBackingStore(window);
+ }
+ 
+ QPlatformOpenGLContext *QAndroidPlatformIntegration::createPlatformOpenGLContext(QOpenGLContext *context) const

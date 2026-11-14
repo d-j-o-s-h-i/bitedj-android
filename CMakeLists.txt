@@ -58,9 +58,13 @@ function(FATAL_ERROR_MISSING_ENV)
   endif()
 endfunction()
 
-execute_process(COMMAND uname -r OUTPUT_VARIABLE UNAME_R OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(UNAME_R MATCHES ".*[Mm]icrosoft.*" OR UNAME_R MATCHES ".*WSL.*")
-  message(FATAL_ERROR "Building on Windows Subsystem for Linux (WSL) is not supported.")
+# The WSL host check only applies to native builds; Android cross-compiles are
+# unaffected by the host kernel, so skip it when ANDROID_ABI is supplied.
+if(NOT DEFINED ANDROID_ABI)
+  execute_process(COMMAND uname -r OUTPUT_VARIABLE UNAME_R OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if(UNAME_R MATCHES ".*[Mm]icrosoft.*" OR UNAME_R MATCHES ".*WSL.*")
+    message(FATAL_ERROR "Building on Windows Subsystem for Linux (WSL) is not supported.")
+  endif()
 endif()
 
 # Set a default build type if none was specified
@@ -96,6 +100,9 @@ endif()
 # Mixxx manual URLs are keyed on. Bump it when merging a new upstream release.
 project(mixxx VERSION 2.5.6)
 enable_language(C CXX)
+if(ANDROID)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 # Work around missing version suffixes support https://gitlab.kitware.com/cmake/cmake/-/issues/16716
 set(MIXXX_VERSION_PRERELEASE "") # set to "alpha" "beta" or ""
 
@@ -811,7 +818,6 @@ add_library(mixxx-lib STATIC EXCLUDE_FROM_ALL
   src/soundio/sounddevice.cpp
   src/soundio/sounddevicenetwork.cpp
   src/soundio/enginecallbackprofiler.cpp
-  src/soundio/sounddeviceportaudio.cpp
   src/soundio/soundmanager.cpp
   src/soundio/soundmanagerconfig.cpp
   src/soundio/soundmanagerutil.cpp
@@ -1250,7 +1256,6 @@ if(QOPENGL)
     src/waveform/renderers/allshader/waveformrendererlrrgb.cpp
     src/waveform/renderers/allshader/waveformrendererpreroll.cpp
     src/waveform/renderers/allshader/waveformrendererrgb.cpp
-    src/waveform/renderers/allshader/waveformrenderertextured.cpp
     src/waveform/renderers/allshader/waveformrenderersignalbase.cpp
     src/waveform/renderers/allshader/waveformrenderersimple.cpp
     src/waveform/renderers/allshader/waveformrendermark.cpp
@@ -1262,9 +1267,6 @@ if(QOPENGL)
     src/waveform/widgets/allshader/rgbstackedwaveformwidget.cpp
     src/waveform/widgets/allshader/simplewaveformwidget.cpp
     src/waveform/widgets/allshader/waveformwidget.cpp
-    src/waveform/widgets/allshader/waveformwidgettexturedfiltered.cpp
-    src/waveform/widgets/allshader/waveformwidgettexturedrgb.cpp
-    src/waveform/widgets/allshader/waveformwidgettexturedstacked.cpp
     src/widget/openglwindow.cpp
     src/widget/tooltipqopengl.cpp
     src/widget/wglwidgetqopengl.cpp
@@ -1272,6 +1274,14 @@ if(QOPENGL)
     src/widget/wspinnyglsl.cpp
     src/widget/wvumeterglsl.cpp
   )
+  if(NOT ANDROID)
+    # These experimental textured variants still use desktop fixed-function GL.
+    target_sources(mixxx-lib PRIVATE
+      src/waveform/renderers/allshader/waveformrenderertextured.cpp
+      src/waveform/widgets/allshader/waveformwidgettexturedfiltered.cpp
+      src/waveform/widgets/allshader/waveformwidgettexturedrgb.cpp
+      src/waveform/widgets/allshader/waveformwidgettexturedstacked.cpp)
+  endif()
 else()
   target_sources(mixxx-lib PRIVATE
     src/waveform/renderers/qtvsynctestrenderer.cpp
@@ -1290,8 +1300,24 @@ set_source_files_properties(src/util/moc_included_test.cpp PROPERTIES SKIP_PRECO
 
 set_target_properties(mixxx-lib PROPERTIES AUTOMOC ON AUTOUIC ON CXX_CLANG_TIDY "${CLANG_TIDY}")
 target_include_directories(mixxx-lib PUBLIC src "${CMAKE_CURRENT_BINARY_DIR}/src")
-target_sources(mixxx-lib PRIVATE src/util/rlimit.cpp)
-set(MIXXX_SETTINGS_PATH ".mixxx/")
+if(ANDROID)
+  find_path(GTEST_PROD_INCLUDE_DIR gtest/gtest_prod.h REQUIRED)
+  target_include_directories(mixxx-lib SYSTEM PUBLIC "${GTEST_PROD_INCLUDE_DIR}")
+  target_sources(mixxx-lib PRIVATE
+    src/platform/android/androidplatform.cpp
+    src/platform/android/documentinput.cpp
+    src/platform/android/documentavio.cpp
+    src/soundio/sounddeviceandroid.cpp
+    src/controllers/midi/androidmidicontroller.cpp
+    src/controllers/midi/androidmidienumerator.cpp
+    src/controllers/midi/virtualmidicontroller.cpp
+  )
+  target_compile_definitions(mixxx-lib PRIVATE MIXXX_ANDROID_CORE)
+else()
+  target_sources(mixxx-lib PRIVATE src/soundio/sounddeviceportaudio.cpp)
+  target_sources(mixxx-lib PRIVATE src/util/rlimit.cpp)
+  set(MIXXX_SETTINGS_PATH ".mixxx/")
+endif()
 
 option(WARNINGS_PEDANTIC "Let the compiler show even more warnings" OFF)
 # TODO: Add -Wtrampolines, not yet supported by clazy
@@ -1368,6 +1394,8 @@ target_link_libraries(mixxx PRIVATE mixxx-lib mixxx-gitinfostore)
 install(
   TARGETS
     mixxx
+  LIBRARY DESTINATION
+    "${CMAKE_INSTALL_LIBDIR}"
   RUNTIME DESTINATION
     "${MIXXX_INSTALL_BINDIR}"
   BUNDLE DESTINATION
@@ -1850,7 +1878,7 @@ target_link_libraries(mixxx-lib PRIVATE Chromaprint::Chromaprint)
 
 # Locale Aware Compare for SQLite
 find_package(SQLite3)
-if(NOT TARGET SQLite3::SQLite3) # CMake < 4.3
+if(NOT TARGET SQLite3::SQLite3 AND TARGET SQLite::SQLite3) # CMake < 4.3
   # This will allow to use the new name while still permitting it to
   # compile with older versions of CMake.
   add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
@@ -2148,9 +2176,14 @@ target_include_directories(MP3GuessEnc SYSTEM PUBLIC lib/mp3guessenc-0.27.4)
 target_link_libraries(mixxx-lib PRIVATE MP3GuessEnc)
 
 # OpenGL
-set(OpenGL_GL_PREFERENCE "GLVND")
-find_package(OpenGL REQUIRED)
-target_link_libraries(mixxx-lib PRIVATE OpenGL::GL)
+if(ANDROID)
+  target_link_libraries(mixxx-lib PRIVATE GLESv2 EGL)
+  target_compile_definitions(mixxx-lib PUBLIC QT_OPENGL_ES_2)
+else()
+  set(OpenGL_GL_PREFERENCE "GLVND")
+  find_package(OpenGL REQUIRED)
+  target_link_libraries(mixxx-lib PRIVATE OpenGL::GL)
+endif()
 
 # Ogg
 find_package(Ogg REQUIRED)
@@ -2161,8 +2194,19 @@ find_package(Vorbis REQUIRED)
 target_link_libraries(mixxx-lib PRIVATE Vorbis::vorbis Vorbis::vorbisenc Vorbis::vorbisfile)
 
 # PortAudio
-find_package(PortAudio REQUIRED)
-target_link_libraries(mixxx-lib PUBLIC PortAudio::PortAudio)
+if(ANDROID)
+  find_path(OBOE_INCLUDE_DIR oboe/Oboe.h REQUIRED)
+  find_library(OBOE_LIBRARY oboe PATH_SUFFIXES arm64-v8a REQUIRED)
+  target_include_directories(mixxx-lib SYSTEM PRIVATE "${OBOE_INCLUDE_DIR}")
+  # libsndfile's static archive includes Opus, while the separate Mixxx Opus
+  # source plugin is disabled. TagLib uses the NDK's system zlib.
+  find_library(ANDROID_OPUS_LIBRARY opus REQUIRED)
+  target_link_libraries(mixxx-lib PRIVATE "${OBOE_LIBRARY}" "${ANDROID_OPUS_LIBRARY}"
+    aaudio OpenSLES amidi android log z)
+else()
+  find_package(PortAudio REQUIRED)
+  target_link_libraries(mixxx-lib PUBLIC PortAudio::PortAudio)
+endif()
 
 # PortAudio Ring Buffer
 add_library(PortAudioRingBuffer STATIC EXCLUDE_FROM_ALL
@@ -2208,6 +2252,9 @@ set(
     Xml
 )
 set(QT_EXTRA_COMPONENTS "")
+if(ANDROID)
+  list(REMOVE_ITEM QT_COMPONENTS PrintSupport)
+endif()
 if(QT6)
   find_package(QT 6.2 NAMES Qt6 COMPONENTS Core REQUIRED)
   list(APPEND QT_EXTRA_COMPONENTS "SvgWidgets")
@@ -2311,10 +2358,12 @@ else()
   endif()
 endif()
 
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS DBus REQUIRED)
-target_link_libraries(mixxx-lib PUBLIC
-  Qt${QT_VERSION_MAJOR}::DBus
-)
+if(NOT ANDROID)
+  find_package(Qt${QT_VERSION_MAJOR} COMPONENTS DBus REQUIRED)
+  target_link_libraries(mixxx-lib PUBLIC
+    Qt${QT_VERSION_MAJOR}::DBus
+  )
+endif()
 
 # Queen Mary DSP
 add_library(QueenMaryDsp STATIC EXCLUDE_FROM_ALL
@@ -2884,3 +2933,19 @@ set(CPACK_DEBIAN_INSTALL_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/packaging/CPackDebI
 set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_SOURCE_DIR}/packaging/CPackConfig.cmake" )
 
 include(CPack)
+
+if(ANDROID)
+  set_target_properties(mixxx PROPERTIES
+    QT_ANDROID_PACKAGE_SOURCE_DIR "${MIXXX_ANDROID_PACKAGE_DIR}"
+    QT_ANDROID_MIN_SDK_VERSION 33
+    QT_ANDROID_TARGET_SDK_VERSION 35
+    QT_ANDROID_SDK_BUILD_TOOLS_REVISION 35.0.0
+    QT_ANDROID_VERSION_CODE 1000501
+    QT_ANDROID_VERSION_NAME "1.0-5-android")
+  target_link_options(mixxx PRIVATE "-Wl,-z,max-page-size=16384")
+  # Static FFmpeg ARM assembly references internal tables directly. Bind those
+  # symbols locally instead of exporting/preempting them from the Qt module.
+  target_link_options(mixxx PRIVATE
+    "-Wl,--exclude-libs=libavcodec.a:libavformat.a:libavutil.a:libswresample.a")
+  qt_finalize_target(mixxx)
+endif()

@@ -7,6 +7,7 @@
 #include <QResizeEvent>
 #include <QSqlQuery>
 #include <QSqlRecord>
+#include <QStyle>
 #include <QStyleFactory>
 
 #include "engine/controls/cuecontrol.h"
@@ -62,7 +63,7 @@ DlgReplaceCueColor::DlgReplaceCueColor(
 
     spinBoxHotcueIndex->setMaximum(NUM_HOT_CUES);
 
-    QIcon icon = QIcon::fromTheme("dialog-warning");
+    QIcon icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
     if (!icon.isNull()) {
         labelReplaceAllColorsIcon->setPixmap(icon.pixmap(QSize(32, 32)));
     } else {

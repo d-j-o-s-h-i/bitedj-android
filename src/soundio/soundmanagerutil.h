@@ -262,6 +262,9 @@ class SoundDeviceId final {
     /// or using a non-hw ALSA device such as "default" or "pulse".
     QString alsaHwDevice;
     int portAudioIndex;
+    QString backend;
+    QString persistentKey;
+    int androidDeviceId = 0; // session-only AudioDeviceInfo id, never serialized
 
     QString debugName() const;
 
@@ -277,7 +280,10 @@ inline bool operator==(
         const SoundDeviceId& rhs) {
     return lhs.name == rhs.name
             && lhs.alsaHwDevice == rhs.alsaHwDevice
-            && lhs.portAudioIndex == rhs.portAudioIndex;
+            && lhs.portAudioIndex == rhs.portAudioIndex
+            && lhs.backend == rhs.backend
+            && lhs.persistentKey == rhs.persistentKey
+            && lhs.androidDeviceId == rhs.androidDeviceId;
 }
 
 inline bool operator!=(
@@ -299,7 +305,9 @@ inline qhash_seed_t qHash(
         qhash_seed_t seed = 0) {
     return qHash(id.name, seed) ^
             qHash(id.alsaHwDevice, seed) ^
-            qHash(id.portAudioIndex, seed);
+            qHash(id.portAudioIndex, seed) ^
+            qHash(id.backend, seed) ^ qHash(id.persistentKey, seed) ^
+            qHash(id.androidDeviceId, seed);
 }
 
 inline QDebug operator<<(QDebug dbg, const SoundDeviceId& soundDeviceId) {

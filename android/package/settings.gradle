@@ -1,0 +1,3 @@
+// Keep the generated Qt package independent of android/settings.gradle.kts.
+// androiddeployqt expects the APK basename to match its output directory.
+rootProject.name = "android-build"

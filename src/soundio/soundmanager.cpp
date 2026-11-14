@@ -1,6 +1,8 @@
 #include "soundio/soundmanager.h"
 
+#ifndef Q_OS_ANDROID
 #include <portaudio.h>
+#endif
 
 #include <QLibrary>
 #include <QStringList>
@@ -17,7 +19,13 @@
 #include "soundio/sounddevicenetwork.h"
 #include "soundio/enginecallbackprofiler.h"
 #include "soundio/sounddevicenotfound.h"
+#ifdef Q_OS_ANDROID
+#include <QJsonArray>
+#include "platform/android/androidplatform.h"
+#include "soundio/sounddeviceandroid.h"
+#else
 #include "soundio/sounddeviceportaudio.h"
+#endif
 #include "soundio/soundmanagerutil.h"
 #include "util/cmdlineargs.h"
 #include "util/compatibility/qatomic.h"
@@ -30,7 +38,9 @@
 #include "soundio/soundmanagerios.h"
 #endif
 
+#ifndef Q_OS_ANDROID
 typedef PaError (*SetJackClientName)(const char *name);
+#endif
 
 namespace {
 
@@ -181,7 +191,9 @@ SoundManager::~SoundManager() {
     clearDeviceList(sleepAfterClosing);
 
     if (m_paInitialized) {
+#ifndef Q_OS_ANDROID
         Pa_Terminate();
+#endif
         m_paInitialized = false;
     }
     // vinyl control proxies and input buffers are freed in closeDevices, called
@@ -223,7 +235,9 @@ QList<SoundDevicePointer> SoundManager::getDeviceList(
 
 QList<QString> SoundManager::getHostAPIList() const {
     QList<QString> apiList;
-
+#ifdef Q_OS_ANDROID
+    apiList.push_back(QStringLiteral("Android (Oboe)"));
+#else
     for (PaHostApiIndex i = 0; i < Pa_GetHostApiCount(); i++) {
         const PaHostApiInfo* api = Pa_GetHostApiInfo(i);
         if (api && QString(api->name) != "skeleton implementation") {
@@ -231,6 +245,7 @@ QList<QString> SoundManager::getHostAPIList() const {
         }
     }
 
+#endif
     return apiList;
 }
 
@@ -303,6 +318,13 @@ void SoundManager::closeDevices(bool sleepAfterClosing) {
     m_pControlObjectSoundStatusCO->set(SOUNDMANAGER_DISCONNECTED);
 }
 
+void SoundManager::stopDevices() {
+    for (int deck = 1; deck <= getConfiguredDeckCount(); ++deck) {
+        ControlObject::set(ConfigKey(QString("[Channel%1]").arg(deck), "play"), 0.0);
+    }
+    closeDevices(false);
+}
+
 void SoundManager::clearDeviceList(bool sleepAfterClosing) {
     //qDebug() << "SoundManager::clearDeviceList()";
 
@@ -314,7 +336,9 @@ void SoundManager::clearDeviceList(bool sleepAfterClosing) {
     m_pErrorDevice.clear();
 
     if (m_paInitialized) {
+#ifndef Q_OS_ANDROID
         Pa_Terminate();
+#endif
         m_paInitialized = false;
     }
 }
@@ -352,6 +376,29 @@ void SoundManager::clearAndQueryDevices() {
 }
 
 void SoundManager::queryDevicesPortaudio() {
+#ifdef Q_OS_ANDROID
+    m_devices.push_back(SoundDevicePointer(new SoundDeviceAndroid(m_pConfig, this,
+            0, QStringLiteral("Android system output"), QStringLiteral("default"), 2,
+            mixxx::audio::SampleRate(48000))));
+    const auto snapshot = mixxx::android::AndroidPlatform::snapshot();
+    for (const auto& value : snapshot.value("audioOutputs").toArray()) {
+        const auto device = value.toObject();
+        int channels = 0;
+        for (const auto& count : device.value("channels").toArray()) {
+            channels = std::max(channels, count.toInt());
+        }
+        // Empty capabilities are not proof of four-channel support. Expose only
+        // stereo until a route-specific stream probe negotiates more channels.
+        if (!channels) channels = 2;
+        const auto name = device.value("name").toString();
+        const auto key = QString::number(device.value("type").toInt()) + ":" + name;
+        auto output = SoundDevicePointer(new SoundDeviceAndroid(m_pConfig, this,
+                device.value("id").toInt(), name, key, std::min(channels, 255),
+                mixxx::audio::SampleRate(48000)));
+        if (name == "DDJ-FLX2" && channels == 4) m_devices.prepend(output);
+        else m_devices.push_back(output);
+    }
+#else
     PaError err = paNoError;
     if (!m_paInitialized) {
 #ifdef Q_OS_LINUX
@@ -415,6 +462,7 @@ void SoundManager::queryDevicesPortaudio() {
                     deviceInfo->defaultSampleRate);
         }
     }
+#endif
 }
 
 void SoundManager::queryDevicesMixxx() {
@@ -865,7 +913,7 @@ QList<AudioInput> SoundManager::registeredInputs() const {
 }
 
 void SoundManager::setJACKName() const {
-#ifdef Q_OS_LINUX
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     typedef PaError (*SetJackClientName)(const char *name);
     QLibrary portaudio("libportaudio.so.2");
     if (portaudio.load()) {

@@ -91,12 +91,31 @@ class FileInfo final {
 
     /// Explicit conversion from a local file QUrl.
     static FileInfo fromQUrl(const QUrl& url) {
+#ifdef Q_OS_ANDROID
+        if (url.scheme() == QLatin1String("content")) {
+            return FileInfo(url.toString(QUrl::FullyEncoded));
+        }
+#endif
         return FileInfo(url.toLocalFile());
     }
 
     /// Explicit conversion to a local file QUrl.
     QUrl toQUrl() const {
+#ifdef Q_OS_ANDROID
+        if (isContentUri(m_fileInfo)) {
+            return QUrl(location());
+        }
+#endif
         return QUrl::fromLocalFile(location());
+    }
+
+    static bool isContentUri(const QFileInfo& fileInfo) {
+#ifdef Q_OS_ANDROID
+        return fileInfo.filePath().startsWith(QLatin1String("content://"));
+#else
+        Q_UNUSED(fileInfo)
+        return false;
+#endif
     }
 
     /// Check that the given QFileInfo is context-insensitive to avoid
@@ -105,7 +124,7 @@ class FileInfo final {
     /// side-effects!
     static bool hasLocation(const QFileInfo& fileInfo) {
         DEBUG_ASSERT(QFileInfo().isRelative()); // special case (should be excluded)
-        return fileInfo.isAbsolute();
+        return isContentUri(fileInfo) || fileInfo.isAbsolute();
     }
     bool hasLocation() const {
         return hasLocation(m_fileInfo);
@@ -113,6 +132,9 @@ class FileInfo final {
 
     /// Returns the permanent location of a file.
     static QString location(const QFileInfo& fileInfo) {
+        if (isContentUri(fileInfo)) {
+            return fileInfo.filePath();
+        }
         DEBUG_ASSERT(hasLocation(fileInfo));
         return fileInfo.absoluteFilePath();
     }
@@ -122,6 +144,9 @@ class FileInfo final {
 
     /// The directory part of the location, i.e. excluding the file name.
     static QString locationPath(const QFileInfo& fileInfo) {
+        if (isContentUri(fileInfo)) {
+            return fileInfo.path();
+        }
         DEBUG_ASSERT(hasLocation(fileInfo));
         return fileInfo.absolutePath();
     }
@@ -153,6 +178,11 @@ class FileInfo final {
     /// Does only access the file system if file metadata is not
     /// already cached, depending on the caching mode of QFileInfo.
     static QString canonicalLocation(const QFileInfo& fileInfo) {
+        // A document URI is already an identity; filesystem canonicalization
+        // can return an empty string even when the provider grants access.
+        if (isContentUri(fileInfo)) {
+            return fileInfo.exists() ? fileInfo.filePath() : QString();
+        }
         DEBUG_ASSERT(hasLocation(fileInfo));
         return fileInfo.canonicalFilePath();
     }
@@ -166,6 +196,9 @@ class FileInfo final {
     /// Does only access the file system if file metadata is not
     /// already cached, depending on the caching mode of QFileInfo.
     static QString canonicalLocationPath(const QFileInfo& fileInfo) {
+        if (isContentUri(fileInfo)) {
+            return fileInfo.exists() ? fileInfo.path() : QString();
+        }
         DEBUG_ASSERT(hasLocation(fileInfo));
         return fileInfo.canonicalPath();
     }
@@ -234,11 +267,11 @@ class FileInfo final {
     }
 
     bool isAbsolute() const {
-        return m_fileInfo.isAbsolute();
+        return hasLocation();
     }
     /// Note: An empty file path is relative!
     bool isRelative() const {
-        return m_fileInfo.isRelative();
+        return !isAbsolute();
     }
 
     QString suffix() const {

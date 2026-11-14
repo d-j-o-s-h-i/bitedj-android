@@ -10,6 +10,9 @@ extern "C" {
 
 #include "sources/readaheadframebuffer.h"
 #include "sources/soundsourceprovider.h"
+#ifdef Q_OS_ANDROID
+#include "platform/android/documentavio.h"
+#endif
 
 namespace mixxx {
 
@@ -153,6 +156,10 @@ class SoundSourceFFmpeg : public SoundSource {
     static FrameCount frameBufferCapacityForStream(const AVStream& avStream);
 
   protected:
+#ifdef Q_OS_ANDROID
+    // Declared before the format context so custom IO outlives its destructor.
+    std::unique_ptr<android::DocumentAvio> m_documentAvio;
+#endif
     InputAVFormatContextPtr m_pavInputFormatContext;
     AVStream* m_pavStream;
     AVCodecContextPtr m_pavCodecContext;

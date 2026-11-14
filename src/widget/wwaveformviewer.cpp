@@ -2,6 +2,8 @@
 
 #include <QDragEnterEvent>
 #include <QEvent>
+#include <QLineF>
+#include <QTouchEvent>
 
 #include "control/controlproxy.h"
 #include "moc_wwaveformviewer.cpp"
@@ -46,6 +48,108 @@ WWaveformViewer::WWaveformViewer(
 
 WWaveformViewer::~WWaveformViewer() {
     //qDebug() << "~WWaveformViewer";
+}
+
+bool WWaveformViewer::event(QEvent* event) {
+    switch (event->type()) {
+    case QEvent::TouchCancel:
+        m_bPinching = false;
+        m_pinchDistance = 0.0;
+        mouseReleaseEvent(nullptr);
+        event->accept();
+        return true;
+    case QEvent::TouchBegin:
+        m_bPinching = false;
+        m_pinchDistance = 0.0;
+        [[fallthrough]];
+    case QEvent::TouchUpdate:
+    case QEvent::TouchEnd: {
+        if (!isEnabled() || !m_waveformWidget ||
+                m_waveformWidget->getType() == WaveformWidgetType::EmptyWaveform) {
+            break;
+        }
+        const auto* touch = static_cast<QTouchEvent*>(event);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const auto& points = touch->points();
+#else
+        const auto& points = touch->touchPoints();
+#endif
+        // Released points are still present in a pointer-up event. Never use
+        // them as a pinch finger or turn that event into a scratch movement.
+        const QTouchEvent::TouchPoint* first = nullptr;
+        const QTouchEvent::TouchPoint* second = nullptr;
+        for (const auto& point : points) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            if (point.state() == QEventPoint::State::Released) {
+#else
+            if (point.state() == Qt::TouchPointReleased) {
+#endif
+                continue;
+            }
+            if (!first) {
+                first = &point;
+            } else {
+                second = &point;
+                break;
+            }
+        }
+        if (first && second) {
+            if (!m_bPinching) {
+                mouseReleaseEvent(nullptr);
+                m_bPinching = true;
+            }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            const double distance = QLineF(first->position(), second->position()).length();
+#else
+            const double distance = QLineF(first->pos(), second->pos()).length();
+#endif
+            // Restart the distance baseline if a finger was replaced. Use
+            // incremental scaling so reversing at a zoom limit reacts at once.
+            if (m_pinchDistance > 0.0 && distance > 0.0 &&
+                    m_pinchFirstId == first->id() &&
+                    m_pinchSecondId == second->id()) {
+                const double zoom = m_waveformWidget->getZoomFactor() *
+                        m_pinchDistance / distance;
+                onZoomChange(math_clamp(zoom,
+                        WaveformWidgetRenderer::s_waveformMinZoom,
+                        WaveformWidgetRenderer::s_waveformMaxZoom));
+            }
+            m_pinchFirstId = first->id();
+            m_pinchSecondId = second->id();
+            m_pinchDistance = distance;
+        } else {
+            m_pinchDistance = 0.0;
+        }
+        if (m_bPinching) {
+            if (event->type() == QEvent::TouchEnd) {
+                m_bPinching = false;
+            }
+            event->accept();
+            return true;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return WWidget::event(event);
+}
+
+bool WWaveformViewer::eventFilter(QObject* watched, QEvent* event) {
+    if (m_waveformWidget && watched == m_waveformWidget->getWidget()) {
+        switch (event->type()) {
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        case QEvent::TouchEnd:
+        case QEvent::TouchCancel:
+            // OpenGL waveforms receive touch through their native child
+            // window. TouchUpdate/End do not propagate to parent widgets.
+            return this->event(event);
+        default:
+            break;
+        }
+    }
+    return WWidget::eventFilter(watched, event);
 }
 
 void WWaveformViewer::setup(const QDomNode& node, const SkinContext& context) {
@@ -287,8 +391,12 @@ void WWaveformViewer::setPlayMarkerPosition(double position) {
 void WWaveformViewer::setWaveformWidget(WaveformWidgetAbstract* waveformWidget) {
     if (m_waveformWidget) {
         QWidget* pWidget = m_waveformWidget->getWidget();
+        pWidget->removeEventFilter(this);
         disconnect(pWidget);
     }
+    mouseReleaseEvent(nullptr);
+    m_bPinching = false;
+    m_pinchDistance = 0.0;
     m_waveformWidget = waveformWidget;
     if (m_waveformWidget) {
         QWidget* pWidget = m_waveformWidget->getWidget();
@@ -300,7 +408,11 @@ void WWaveformViewer::setWaveformWidget(WaveformWidgetAbstract* waveformWidget) 
                     // The pointer must be considered as dangling!
                     m_waveformWidget = nullptr;
                 });
-        m_waveformWidget->getWidget()->setMouseTracking(true);
+        pWidget->setMouseTracking(true);
+#ifndef __APPLE__
+        pWidget->setAttribute(Qt::WA_AcceptTouchEvents);
+        pWidget->installEventFilter(this);
+#endif
 #ifdef MIXXX_USE_QOPENGL
         if (m_waveformWidget->getGLWidget()) {
             // The OpenGLWindow used to display the waveform widget interferes with the

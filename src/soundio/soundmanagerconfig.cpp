@@ -96,6 +96,8 @@ bool SoundManagerConfig::readFromDisk() {
         }
         SoundDeviceId deviceIdFromFile;
         deviceIdFromFile.name = devElement.attribute(xmlAttributeDeviceName);
+        deviceIdFromFile.backend = devElement.attribute("backend");
+        deviceIdFromFile.persistentKey = devElement.attribute("persistentKey");
         if (deviceIdFromFile.name.isEmpty()) {
             continue;
         }
@@ -133,11 +135,13 @@ bool SoundManagerConfig::readFromDisk() {
             for (const auto& soundDevice : soundDevices) {
                 SoundDeviceId hardwareDeviceId = soundDevice->getDeviceId();
                 if (hardwareDeviceId.name == deviceIdFromFile.name) {
-                    deviceIdFromFile.alsaHwDevice = hardwareDeviceId.alsaHwDevice;
-                    deviceIdFromFile.portAudioIndex = hardwareDeviceId.portAudioIndex;
+                    deviceIdFromFile = hardwareDeviceId;
                 }
             }
         } else {
+            // Android ids and USB card addresses are session-local. Do not
+            // guess between identically named devices; require a new selection.
+            if (deviceIdFromFile.backend == "android-oboe") continue;
             // It is not clear which hardwareDeviceId corresponds to the device
             // listed in the configuration file using only the name.
             if (!deviceIdFromFile.alsaHwDevice.isEmpty()) {
@@ -238,6 +242,10 @@ bool SoundManagerConfig::writeToDisk() const {
         QDomElement devElement(doc.createElement(xmlElementSoundDevice));
         devElement.setAttribute(xmlAttributeDeviceName, deviceId.name);
         devElement.setAttribute(xmlAttributePortAudioIndex, deviceId.portAudioIndex);
+        if (!deviceId.backend.isEmpty()) {
+            devElement.setAttribute("backend", deviceId.backend);
+            devElement.setAttribute("persistentKey", deviceId.persistentKey);
+        }
         if (m_api == MIXXX_PORTAUDIO_ALSA_STRING) {
             devElement.setAttribute(xmlAttributeAlsaHwDevice, deviceId.alsaHwDevice);
         }
@@ -557,6 +565,9 @@ void SoundManagerConfig::loadDefaults(SoundManager* soundManager, unsigned int f
     if (flags & SoundManagerConfig::API) {
         QList<QString> apiList = soundManager->getHostAPIList();
         if (!apiList.isEmpty()) {
+#ifdef Q_OS_ANDROID
+            m_api = QStringLiteral("Android (Oboe)");
+#endif
 #ifdef __LINUX__
             //Check for JACK and use that if it's available, otherwise use ALSA
             if (apiList.contains(MIXXX_PORTAUDIO_JACK_STRING)) {
@@ -602,6 +613,13 @@ void SoundManagerConfig::loadDefaults(SoundManager* soundManager, unsigned int f
                         mixxx::audio::ChannelCount::stereo(),
                         0);
                 addOutput(pDevice->getDeviceId(), mainOut);
+#ifdef Q_OS_ANDROID
+                if (pDevice->getDeviceId().name == "DDJ-FLX2" &&
+                        pDevice->getNumOutputChannels().value() >= 4) {
+                    addOutput(pDevice->getDeviceId(), AudioOutput(AudioPathType::Headphones,
+                            2, mixxx::audio::ChannelCount::stereo(), 0));
+                }
+#endif
                 defaultSampleRate = pDevice->getDefaultSampleRate();
                 break;
             }

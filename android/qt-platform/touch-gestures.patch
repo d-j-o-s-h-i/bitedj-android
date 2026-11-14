@@ -1,0 +1,133 @@
+--- a/src/android/jar/src/org/qtproject/qt/android/QtWindow.java
++++ b/src/android/jar/src/org/qtproject/qt/android/QtWindow.java
+@@ -9,6 +9,7 @@
+ import android.view.MotionEvent;
+ import android.view.Surface;
+ import android.view.View;
++import android.view.ViewConfiguration;
+ import android.view.ViewGroup;
+ 
+ import java.util.HashMap;
+@@ -22,6 +23,11 @@
+     private final QtEditText m_editText;
+     private final QtInputConnection.QtInputConnectionListener m_inputConnectionListener;
+ 
++    private MotionEvent m_pendingFingerDown;
++    private boolean m_fingerStreamSent;
++    private boolean m_longPressConsumed;
++    private final int m_touchSlop;
++
+     private static native void setSurface(int windowId, Surface surface);
+     static native void windowFocusChanged(boolean hasFocus, int id);
+ 
+@@ -35,6 +41,7 @@
+         setFocusableInTouchMode(true);
+         setDefaultFocusHighlightEnabled(false);
+         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
++        m_touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+ 
+         // Views are by default visible, but QWindows are not.
+         // We should ideally pick up the actual QWindow state here,
+@@ -61,7 +68,10 @@
+                 new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+                     @Override
+                     public void onLongPress(MotionEvent event) {
+-                        QtInputDelegate.longPress(getId(), (int) event.getX(), (int) event.getY());
++                        if (m_pendingFingerDown != null && !m_fingerStreamSent) {
++                            m_longPressConsumed = true;
++                            QtInputDelegate.longPress(getId(), (int) event.getX(), (int) event.getY());
++                        }
+                     }
+                 });
+             m_gestureDetector.setIsLongpressEnabled(true);
+@@ -91,9 +101,69 @@
+         if (m_editText != null && m_inputConnectionListener != null)
+             m_inputConnectionListener.onEditTextChanged(m_editText);
+ 
+-        QtInputDelegate.sendTouchEvent(event, getId());
+-        m_gestureDetector.onTouchEvent(event);
+-        return true;
++        // Defer a finger down until a tap, drag or long press is known. This
++        // prevents a left-button seek/load before the right-click menu opens.
++        if (event.getToolType(0) != MotionEvent.TOOL_TYPE_FINGER) {
++            QtInputDelegate.sendTouchEvent(event, getId());
++            m_gestureDetector.onTouchEvent(event);
++            return true;
++        }
++        switch (event.getActionMasked()) {
++        case MotionEvent.ACTION_DOWN:
++            resetFingerGesture();
++            m_pendingFingerDown = MotionEvent.obtain(event);
++            m_gestureDetector.onTouchEvent(event);
++            return true;
++        case MotionEvent.ACTION_MOVE:
++            m_gestureDetector.onTouchEvent(event);
++            if (m_longPressConsumed) return true;
++            if (!m_fingerStreamSent && m_pendingFingerDown != null) {
++                float dx = event.getX() - m_pendingFingerDown.getX();
++                float dy = event.getY() - m_pendingFingerDown.getY();
++                if (dx * dx + dy * dy <= m_touchSlop * m_touchSlop) return true;
++                sendPendingFingerDown();
++            }
++            QtInputDelegate.sendTouchEvent(event, getId());
++            return true;
++        case MotionEvent.ACTION_POINTER_DOWN:
++        case MotionEvent.ACTION_POINTER_UP:
++            m_gestureDetector.onTouchEvent(event);
++            if (m_longPressConsumed) return true;
++            sendPendingFingerDown();
++            QtInputDelegate.sendTouchEvent(event, getId());
++            return true;
++        case MotionEvent.ACTION_UP:
++            m_gestureDetector.onTouchEvent(event);
++            if (!m_longPressConsumed) {
++                sendPendingFingerDown();
++                QtInputDelegate.sendTouchEvent(event, getId());
++            }
++            resetFingerGesture();
++            return true;
++        case MotionEvent.ACTION_CANCEL:
++            if (m_fingerStreamSent) QtInputDelegate.sendTouchEvent(event, getId());
++            resetFingerGesture();
++            return true;
++        default:
++            QtInputDelegate.sendTouchEvent(event, getId());
++            return true;
++        }
++    }
++
++    private void sendPendingFingerDown()
++    {
++        if (m_pendingFingerDown != null && !m_fingerStreamSent) {
++            QtInputDelegate.sendTouchEvent(m_pendingFingerDown, getId());
++            m_fingerStreamSent = true;
++        }
++    }
++
++    private void resetFingerGesture()
++    {
++        if (m_pendingFingerDown != null) m_pendingFingerDown.recycle();
++        m_pendingFingerDown = null;
++        m_fingerStreamSent = false;
++        m_longPressConsumed = false;
+     }
+ 
+     @Override
+--- a/src/plugins/platforms/android/androidjniinput.cpp
++++ b/src/plugins/platforms/android/androidjniinput.cpp
+@@ -231,13 +231,9 @@
+         if (inputContext && qGuiApp)
+             QMetaObject::invokeMethod(inputContext, "longPress", Q_ARG(int, x), Q_ARG(int, y));
+ 
+-        //### TODO: add proper API for Qt 5.2
+-        static bool rightMouseFromLongPress = qEnvironmentVariableIntValue("QT_ANDROID_ENABLE_RIGHT_MOUSE_FROM_LONG_PRESS");
+-        if (!rightMouseFromLongPress)
+-            return;
+-        m_ignoreMouseEvents = true;
+-        const QPoint globalPos(x,y);
+         QWindow *window = windowFromId(winId);
++        const QPoint globalPos = window && window->handle()
++                ? window->handle()->mapToGlobalF(QPointF(x, y)).toPoint() : QPoint(x, y);
+         const QPoint localPos = window && window->handle() ?
+                                     window->handle()->mapFromGlobal(globalPos) : globalPos;
+ 

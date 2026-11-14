@@ -1,0 +1,25 @@
+--- a/src/android/jar/src/org/qtproject/qt/android/QtWindow.java
++++ b/src/android/jar/src/org/qtproject/qt/android/QtWindow.java
+@@ -91,7 +91,6 @@
+         if (m_editText != null && m_inputConnectionListener != null)
+             m_inputConnectionListener.onEditTextChanged(m_editText);
+ 
+-        event.setLocation(event.getX() + getX(), event.getY() + getY());
+         QtInputDelegate.sendTouchEvent(event, getId());
+         m_gestureDetector.onTouchEvent(event);
+         return true;
+--- a/src/plugins/platforms/android/androidjniinput.cpp
++++ b/src/plugins/platforms/android/androidjniinput.cpp
+@@ -295,7 +295,11 @@
+             return;
+         }
+ 
+-        QPointF mappedTouchPoint = window->mapToGlobal(QPointF(x, y));
++        QPointF mappedTouchPoint;
++        if (window->handle())
++            mappedTouchPoint = window->handle()->mapToGlobalF(QPointF(x, y));
++        else
++            mappedTouchPoint = window->mapToGlobal(QPointF(x, y));
+         QWindowSystemInterface::TouchPoint touchPoint;
+         // Start numbering touch points from 1
+         touchPoint.id = id + 1;

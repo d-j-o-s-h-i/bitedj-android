@@ -66,6 +66,7 @@ void WSpinnyGLSL::setupVinylSignalQuality() {
 
 void WSpinnyGLSL::updateVinylSignalQualityImage(
         const QColor& qual_color, const unsigned char* data) {
+#ifdef __VINYLCONTROL__
     m_vinylQualityColor = qual_color;
     m_vinylQualityColor.setAlphaF(0.75f);
     if (m_qTexture.isStorageAllocated()) {
@@ -86,6 +87,10 @@ void WSpinnyGLSL::updateVinylSignalQualityImage(
         m_qTexture.release();
         doneCurrent();
     }
+#else
+    Q_UNUSED(qual_color);
+    Q_UNUSED(data);
+#endif
 }
 
 void WSpinnyGLSL::paintGL() {

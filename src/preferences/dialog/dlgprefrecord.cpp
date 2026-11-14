@@ -10,6 +10,10 @@
 #include "recording/defs_recording.h"
 #include "util/sandbox.h"
 
+#ifdef Q_OS_ANDROID
+#include "platform/android/androidplatform.h"
+#endif
+
 namespace {
 constexpr bool kDefaultCueEnabled = true;
 } // anonymous namespace
@@ -205,10 +209,35 @@ void DlgPrefRecord::slotResetToDefaults() {
 }
 
 void DlgPrefRecord::slotBrowseRecordingsDir() {
+#ifdef Q_OS_ANDROID
+    // Android's native picker returns a SAF tree URI with a read grant. The
+    // recording writer, CUE files and recordings browser all use local paths.
+    // Use the existing all-files permission and a local directory picker.
+    QFileDialog dialog(this);
+    dialog.setOption(QFileDialog::DontUseNativeDialog);
+    dialog.setOption(QFileDialog::ShowDirsOnly);
+    dialog.setFileMode(QFileDialog::Directory);
+    dialog.setWindowTitle(tr("Choose recordings directory"));
+    const QString currentPath = LineEditRecordings->text();
+    dialog.setDirectory(QFileInfo(currentPath).isDir() &&
+                    !currentPath.startsWith(QStringLiteral("content://"))
+                    ? currentPath
+                    : QStandardPaths::writableLocation(QStandardPaths::MusicLocation));
+    QList<QUrl> locations;
+    for (const auto& path : mixxx::android::AndroidPlatform::storagePaths()) {
+        locations.append(QUrl::fromLocalFile(path));
+    }
+    dialog.setSidebarUrls(locations);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const QString fd = dialog.selectedFiles().value(0);
+#else
     QString fd = QFileDialog::getExistingDirectory(
             this, tr("Choose recordings directory"),
             m_pConfig->getValueString(
                     ConfigKey(RECORDING_PREF_KEY,"Directory")));
+#endif
 
     if (fd != "") {
         // The user has picked a new directory via a file dialog. This means the

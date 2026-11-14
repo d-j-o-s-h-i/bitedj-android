@@ -2,6 +2,12 @@
 
 #include <QStorageInfo>
 
+#ifdef Q_OS_ANDROID
+#include <QFile>
+#include <cerrno>
+#include <sys/statvfs.h>
+#endif
+
 #include "control/controlproxy.h"
 #include "encoder/encoder.h"
 #include "mixer/playerinfo.h"
@@ -322,11 +328,26 @@ void EngineRecord::probeFreeSpace(int bytesWritten) {
     }
     m_freeSpaceProbeCountdown = kFreeSpaceProbeIntervalBytes;
 
+#ifdef Q_OS_ANDROID
+    // QStorageInfo reads /proc/self/mountinfo on Android, which can stall
+    // for long periods; statvfs only needs the selected directory.
+    const QByteArray path = QFile::encodeName(m_fileName);
+    struct statvfs storage;
+    int result;
+    do {
+        result = statvfs(path.constData(), &storage);
+    } while (result == -1 && errno == EINTR);
+    if (result != 0) {
+        return;
+    }
+    emit freeSpaceAvailable(static_cast<qint64>(storage.f_bavail) * storage.f_frsize);
+#else
     const QStorageInfo storage(m_fileName);
     if (!storage.isValid()) {
         return;
     }
     emit freeSpaceAvailable(storage.bytesAvailable());
+#endif
 }
 // Encoder calls this method to write compressed audio
 qint64 EngineRecord::tell() {

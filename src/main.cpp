@@ -17,6 +17,9 @@
 #include "errordialoghandler.h"
 #include "mixxxapplication.h"
 #include "mixxxmainwindow.h"
+#ifdef Q_OS_ANDROID
+#include "platform/android/androidplatform.h"
+#endif
 #if defined(__WINDOWS__)
 #include "nativeeventhandlerwin.h"
 #endif
@@ -219,6 +222,14 @@ int main(int argc, char * argv[]) {
     if (!args.parse(argc, argv)) {
         return kParseCmdlineArgsErrorExitCode;
     }
+#ifdef Q_OS_ANDROID
+    if (args.getSettingsPath().isEmpty() || args.getResourcePath().isEmpty() ||
+            !QDir().mkpath(args.getSettingsPath())) {
+        fprintf(stderr, "Mixxx Android: settings or packaged resources unavailable\n");
+        mixxx::android::AndroidPlatform::finishActivity();
+        return 1;
+    }
+#endif
 
     // If you change this here, you also need to change it in
     // ErrorDialogHandler::errorDialog(). TODO(XXX): Remove this hack.
@@ -297,6 +308,12 @@ int main(int argc, char * argv[]) {
     qDebug() << "Mixxx shutdown complete with code" << exitCode;
 
     mixxx::Logging::shutdown();
+
+#ifdef Q_OS_ANDROID
+    // runMixxx has destroyed the window and CoreServices (audio and MIDI)
+    // before the Activity is closed.
+    mixxx::android::AndroidPlatform::finishActivity();
+#endif
 
     return exitCode;
 }

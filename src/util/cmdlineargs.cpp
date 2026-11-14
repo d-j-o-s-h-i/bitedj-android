@@ -18,6 +18,9 @@
 #include "defs_urls.h"
 #include "sources/soundsourceproxy.h"
 #include "util/assert.h"
+#ifdef Q_OS_ANDROID
+#include "platform/android/androidplatform.h"
+#endif
 
 namespace {
 
@@ -66,7 +69,9 @@ CmdlineArgs::CmdlineArgs()
           m_logStdErrLevel(mixxx::LogLevel::Trace),
           m_logMaxFileSize(mixxx::kLogMaxFileSizeDefault),
 // We are not ready to switch to XDG folders under Linux, so keeping $HOME/.mixxx as preferences folder. see #8090
-#ifdef MIXXX_SETTINGS_PATH
+#ifdef Q_OS_ANDROID
+          m_settingsPath(mixxx::android::AndroidPlatform::settingsPath())
+#elif defined(MIXXX_SETTINGS_PATH)
           m_settingsPath(QDir::homePath().append("/").append(MIXXX_SETTINGS_PATH))
 #elif defined(__LINUX__)
 #error "We are not ready to switch to XDG folders under Linux"
@@ -95,6 +100,9 @@ CmdlineArgs::CmdlineArgs()
                           .append("/"))
 #endif
 {
+#ifdef Q_OS_ANDROID
+    m_resourcePath = mixxx::android::AndroidPlatform::resourcesPath();
+#endif
 }
 
 namespace {

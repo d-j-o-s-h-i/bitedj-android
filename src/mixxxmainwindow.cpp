@@ -211,7 +211,17 @@ MixxxMainWindow::MixxxMainWindow(std::shared_ptr<mixxx::CoreServices> pCoreServi
 
 #ifdef MIXXX_USE_QOPENGL
 void MixxxMainWindow::initializeQOpenGL() {
-    if (!CmdlineArgs::Instance().getSafeMode()) {
+#ifdef Q_OS_ANDROID
+    // The Android platform plugin has no native child windows, so a QOpenGLWindow
+    // embedded through QWindowContainer never gets a surface and its context can
+    // never become current. Probing GL that way dereferences a null context while
+    // painting. Initializing without OpenGL makes WaveformWidgetFactory select the
+    // software waveform and VU-meter renderers instead.
+    const bool probeOpenGl = false;
+#else
+    const bool probeOpenGl = !CmdlineArgs::Instance().getSafeMode();
+#endif
+    if (probeOpenGl) {
         QOpenGLContext context;
         context.setFormat(WaveformWidgetFactory::getSurfaceFormat(m_pCoreServices->getSettings()));
         if (context.create()) {
@@ -939,6 +949,9 @@ void MixxxMainWindow::connectMenuBar() {
 /// Enable/disable listening to Alt key press for toggling the menubar.
 #ifndef __APPLE__
 void MixxxMainWindow::slotUpdateMenuBarAltKeyConnection() {
+#ifdef Q_OS_ANDROID
+    m_pCoreServices->getSettings()->setValue(kHideMenuBarConfigKey, 0);
+#endif
     if (!m_pCoreServices->getKeyboardEventFilter() || !m_pMenuBar) {
         return;
     }
@@ -1499,6 +1512,13 @@ void MixxxMainWindow::checkDirectRendering() {
     if (!factory) {
         return;
     }
+
+#ifdef Q_OS_ANDROID
+    // Waveforms are rendered in software on Android (see initializeQOpenGL), so
+    // there is no direct rendering to enable. The desktop warning would block
+    // startup with a modal dialog that offers no actionable setting.
+    return;
+#endif
 
     UserSettingsPointer pConfig = m_pCoreServices->getSettings();
 

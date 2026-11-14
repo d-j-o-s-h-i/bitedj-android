@@ -129,7 +129,7 @@
                   <LibrarySidebar>
                     <ObjectName>LibrarySidebar</ObjectName>
                     <Size>0me,0me</Size>
-                    <HiddenFeatures>Tracks,Auto DJ,Playlists,Crates</HiddenFeatures>
+                    <HiddenFeatures>Auto DJ,Playlists,Crates</HiddenFeatures>
                   </LibrarySidebar>
                 </Children>
                 <Connection>

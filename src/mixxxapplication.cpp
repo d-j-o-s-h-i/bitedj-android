@@ -5,6 +5,18 @@
 #include <QTouchEvent>
 #include <QtDebug>
 #include <QtGlobal>
+#ifdef Q_OS_ANDROID
+#include <QAbstractItemView>
+#include <QAbstractScrollArea>
+#include <QJniObject>
+#include <QMouseEvent>
+#include <QScroller>
+#include <QScrollerProperties>
+#include <QWidget>
+#include <QWindow>
+#include "platform/android/nestedscrollgestureguard.h"
+#include "widget/wwaveformviewer.h"
+#endif
 
 #include "audio/frame.h"
 #include "audio/types.h"
@@ -88,6 +100,10 @@ bool belongsToPreferencesDialog(const QWidget* pWidget) {
 MixxxApplication::MixxxApplication(int& argc, char** argv)
         : QApplication(argc, argv),
           m_isDeveloper(CmdlineArgs::Instance().getDeveloper()),
+#ifdef Q_OS_ANDROID
+          m_androidInputDiagnostics(QNativeInterface::QAndroidApplication::context()
+                          .callMethod<jboolean>("inputDiagnosticsEnabled")),
+#endif
           m_eventNotifyExecTimeWarningThreshold(
                   mixxx::Duration::fromMillis(kDefaultEventNotifyExecTimeWarningThreshold)) {
     registerMetaTypes();
@@ -145,6 +161,45 @@ void MixxxApplication::setNotifyWarningThreshold(int threshold) {
 }
 
 bool MixxxApplication::notify(QObject* pTarget, QEvent* pEvent) {
+#ifdef Q_OS_ANDROID
+    if (pTarget && pEvent->type() == QEvent::Polish) {
+        if (auto* scrollArea = qobject_cast<QAbstractScrollArea*>(pTarget)) {
+            QWidget* viewport = scrollArea->viewport();
+            if (viewport && !QScroller::hasScroller(viewport)) {
+                QScroller::grabGesture(viewport, QScroller::TouchGesture);
+                auto* scroller = QScroller::scroller(viewport);
+                auto properties = scroller->scrollerProperties();
+                properties.setScrollMetric(QScrollerProperties::HorizontalOvershootPolicy,
+                        QScrollerProperties::OvershootAlwaysOff);
+                properties.setScrollMetric(QScrollerProperties::VerticalOvershootPolicy,
+                        QScrollerProperties::OvershootAlwaysOff);
+                scroller->setScrollerProperties(properties);
+            }
+            if (auto* itemView = qobject_cast<QAbstractItemView*>(scrollArea)) {
+                itemView->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+                itemView->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+            }
+        }
+    }
+    if (m_androidInputDiagnostics && pTarget) {
+        if (pEvent->type() == QEvent::MouseButtonPress) {
+            const auto* mouse = static_cast<QMouseEvent*>(pEvent);
+            qInfo() << "MixxxInput Qt mouse" << pTarget
+                    << "local" << mouse->position() << "global" << mouse->globalPosition();
+            if (const auto* widget = qobject_cast<QWidget*>(pTarget)) {
+                qInfo() << "MixxxInput Qt widget origin" << widget->mapToGlobal(QPoint())
+                        << "size" << widget->size() << "dpr" << widget->devicePixelRatioF();
+            }
+        } else if (pEvent->type() == QEvent::TouchBegin) {
+            const auto* touch = static_cast<QTouchEvent*>(pEvent);
+            if (!touch->points().isEmpty()) {
+                const auto& point = touch->points().first();
+                qInfo() << "MixxxInput Qt touch" << pTarget
+                        << "local" << point.position() << "global" << point.globalPosition();
+            }
+        }
+    }
+#endif
     // Bite DJ: kiosk-style UI. The unit is touch-only, so tooltips and
     // modal dialog boxes are suppressed application-wide; all interaction
     // that stock Mixxx routes through dialogs is handled by in-skin pages
@@ -174,7 +229,31 @@ bool MixxxApplication::notify(QObject* pTarget, QEvent* pEvent) {
         time.start();
     }
 
+#ifdef Q_OS_ANDROID
+    static NestedScrollGestureGuard nestedScrollGestureGuard;
+    nestedScrollGestureGuard.beforeNotify(pTarget, pEvent);
+#endif
     bool ret = QApplication::notify(pTarget, pEvent);
+#ifdef Q_OS_ANDROID
+    nestedScrollGestureGuard.afterNotify(pEvent);
+    if (m_androidInputDiagnostics &&
+            (pEvent->type() == QEvent::TouchBegin ||
+                    pEvent->type() == QEvent::TouchUpdate ||
+                    pEvent->type() == QEvent::TouchEnd ||
+                    pEvent->type() == QEvent::TouchCancel)) {
+        for (auto* widget = qobject_cast<QWidget*>(pTarget); widget;
+                widget = widget->parentWidget()) {
+            if (auto* viewer = qobject_cast<WWaveformViewer*>(widget)) {
+                const auto& group = viewer->getGroup();
+                qInfo() << "MixxxInput waveform" << group << pEvent->type()
+                        << "zoom" << ControlProxy(group, "waveform_zoom").get()
+                        << "scratchEnabled" << ControlProxy(group, "scratch_position_enable").get()
+                        << "scratchPosition" << ControlProxy(group, "scratch_position").get();
+                break;
+            }
+        }
+    }
+#endif
 
     VERIFY_OR_DEBUG_ASSERT(pTarget != nullptr) {
         qWarning() << "Processed" << pEvent->type() << "for null pointer, this is probably a bug!";

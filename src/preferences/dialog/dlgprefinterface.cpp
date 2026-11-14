@@ -40,7 +40,11 @@ const QString kHideMenuBarKey = QStringLiteral("hide_menubar");
 
 // TODO move these to a common *_defs.h file, some are also used by e.g. MixxxMainWindow
 const bool kStartInFullscreenDefault = false;
+#ifdef Q_OS_ANDROID
+const bool kHideMenuBarDefault = false;
+#else
 const bool kHideMenuBarDefault = true;
+#endif
 
 } // namespace
 
@@ -58,6 +62,9 @@ DlgPrefInterface::DlgPrefInterface(
           m_minScaleFactor(1.0),
           m_dDevicePixelRatio(1.0) {
     setupUi(this);
+#ifdef Q_OS_ANDROID
+    checkBoxHideMenuBar->hide();
+#endif
 
     // get the pixel ratio to display a crisp skin preview when Mixxx is scaled
     m_dDevicePixelRatio = devicePixelRatioF();

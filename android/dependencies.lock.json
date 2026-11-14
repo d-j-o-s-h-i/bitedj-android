@@ -1,0 +1,82 @@
+{
+  "ogg": {
+    "version": "1.3.5",
+    "url": "https://codeload.github.com/xiph/ogg/tar.gz/refs/tags/v1.3.5",
+    "sha256": "f6f1b04cfa4e98b70ffe775d5e302d9c6b98541f05159af6de2d6617817ed7d6"
+  },
+  "vorbis": {
+    "version": "1.3.7",
+    "url": "https://codeload.github.com/xiph/vorbis/tar.gz/refs/tags/v1.3.7",
+    "sha256": "270c76933d0934e42c5ee0a54a36280e2d87af1de3cc3e584806357e237afd13"
+  },
+  "flac": {
+    "version": "1.4.3",
+    "url": "https://codeload.github.com/xiph/flac/tar.gz/refs/tags/1.4.3",
+    "sha256": "0a4bb82a30609b606650d538a804a7b40205366ce8fc98871b0ecf3fbb0611ee"
+  },
+  "sndfile": {
+    "version": "1.2.2",
+    "url": "https://codeload.github.com/libsndfile/libsndfile/tar.gz/refs/tags/1.2.2",
+    "sha256": "ffe12ef8add3eaca876f04087734e6e8e029350082f3251f565fa9da55b52121"
+  },
+  "taglib": {
+    "version": "1.13.1",
+    "url": "https://codeload.github.com/taglib/taglib/tar.gz/refs/tags/v1.13.1",
+    "sha256": "c8da2b10f1bfec2cd7dbfcd33f4a2338db0765d851a50583d410bacf055cfd0b"
+  },
+  "ebur128": {
+    "version": "1.2.6",
+    "url": "https://codeload.github.com/jiixyj/libebur128/tar.gz/refs/tags/v1.2.6",
+    "sha256": "baa7fc293a3d4651e244d8022ad03ab797ca3c2ad8442c43199afe8059faa613"
+  },
+  "soundtouch": {
+    "version": "2.3.3",
+    "url": "https://www.surina.net/soundtouch/soundtouch-2.3.3.tar.gz",
+    "sha256": "43b23dfac2f64a3aff55d64be096ffc7b73842c3f5665caff44975633a975a99"
+  },
+  "lame": {
+    "version": "3.100",
+    "url": "https://deb.debian.org/debian/pool/main/l/lame/lame_3.100.orig.tar.gz",
+    "sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e"
+  },
+  "protobuf": {
+    "version": "21.12",
+    "url": "https://codeload.github.com/protocolbuffers/protobuf/tar.gz/refs/tags/v21.12",
+    "sha256": "22fdaf641b31655d4b2297f9981fa5203b2866f8332d3c6333f6b0107bb320de"
+  },
+  "ffmpeg": {
+    "version": "7.1.2",
+    "url": "https://ffmpeg.org/releases/ffmpeg-7.1.2.tar.xz",
+    "sha256": "089bc60fb59d6aecc5d994ff530fd0dcb3ee39aa55867849a2bbc4e555f9c304"
+  },
+  "oboe": {
+    "version": "1.9.0",
+    "url": "https://codeload.github.com/google/oboe/tar.gz/refs/tags/1.9.0",
+    "sha256": "e030276d25b8bdfaeb04f66646821b1ba4a2b6a580a7e84fb144a478eaecd663"
+  },
+  "opus": {
+    "version": "1.5.2",
+    "url": "https://codeload.github.com/xiph/opus/tar.gz/refs/tags/v1.5.2",
+    "sha256": "9480e329e989f70d69886ded470c7f8cfe6c0667cc4196d4837ac9e668fb7404"
+  },
+  "fftw": {
+    "version": "3.3.10",
+    "url": "https://www.fftw.org/fftw-3.3.10.tar.gz",
+    "sha256": "56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467"
+  },
+  "chromaprint": {
+    "version": "1.5.1",
+    "url": "https://codeload.github.com/acoustid/chromaprint/tar.gz/refs/tags/v1.5.1",
+    "sha256": "a1aad8fa3b8b18b78d3755b3767faff9abb67242e01b478ec9a64e190f335e1c"
+  },
+  "gsl": {
+    "version": "4.0.0",
+    "url": "https://codeload.github.com/microsoft/GSL/tar.gz/refs/tags/v4.0.0",
+    "sha256": "f0e32cb10654fea91ad56bde89170d78cfbf4363ee0b01d8f097de2ba49f6ce9"
+  },
+  "googletest": {
+    "version": "1.15.2",
+    "url": "https://codeload.github.com/google/googletest/tar.gz/refs/tags/v1.15.2",
+    "sha256": "7b42b4d6ed48810c5362c265a17faebe90dc2373c885e5216439d37927f02926"
+  }
+}

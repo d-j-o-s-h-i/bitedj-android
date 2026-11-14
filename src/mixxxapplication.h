@@ -18,5 +18,8 @@ class MixxxApplication : public QApplication {
     void registerMetaTypes();
 
     bool m_isDeveloper;
+#ifdef Q_OS_ANDROID
+    bool m_androidInputDiagnostics;
+#endif
     mixxx::Duration m_eventNotifyExecTimeWarningThreshold;
 };

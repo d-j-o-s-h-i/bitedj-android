@@ -179,8 +179,15 @@ WaveformWidgetFactory::WaveformWidgetFactory()
                                           .arg(versionString, vendorString, rendererString);
 
             GLint majorVersion, minorVersion = GL_INVALID_ENUM;
+#ifdef Q_OS_ANDROID
+            // GLES2 headers omit GL_MAJOR/MINOR_VERSION. Qt already records
+            // the negotiated context version without an unsupported GL query.
+            majorVersion = pContext->format().majorVersion();
+            minorVersion = pContext->format().minorVersion();
+#else
             glFunctions->glGetIntegerv(GL_MAJOR_VERSION, &majorVersion);
             glFunctions->glGetIntegerv(GL_MINOR_VERSION, &minorVersion);
+#endif
             if (majorVersion == GL_INVALID_ENUM || minorVersion == GL_INVALID_ENUM) {
                 // GL_MAJOR/MINOR_VERSION are not supported below OpenGL 3.0, so
                 // parse GL_VERSION string as a fallback.
@@ -1160,21 +1167,21 @@ void WaveformWidgetFactory::evaluateWidgets() {
             break;
 #endif
         case WaveformWidgetType::AllShaderTexturedFiltered:
-#ifndef MIXXX_USE_QOPENGL
+#if !defined(MIXXX_USE_QOPENGL) || defined(Q_OS_ANDROID)
             continue;
 #else
             setWaveformVarsByType.operator()<allshader::WaveformWidgetTexturedFiltered>();
             break;
 #endif
         case WaveformWidgetType::AllShaderTexturedRGB:
-#ifndef MIXXX_USE_QOPENGL
+#if !defined(MIXXX_USE_QOPENGL) || defined(Q_OS_ANDROID)
             continue;
 #else
             setWaveformVarsByType.operator()<allshader::WaveformWidgetTexturedRGB>();
             break;
 #endif
         case WaveformWidgetType::AllShaderTexturedStacked:
-#ifndef MIXXX_USE_QOPENGL
+#if !defined(MIXXX_USE_QOPENGL) || defined(Q_OS_ANDROID)
             continue;
 #else
             setWaveformVarsByType.operator()<allshader::WaveformWidgetTexturedStacked>();
@@ -1279,6 +1286,7 @@ WaveformWidgetAbstract* WaveformWidgetFactory::createWaveformWidget(
         case WaveformWidgetType::AllShaderHSVWaveform:
             widget = new allshader::HSVWaveformWidget(viewer->getGroup(), viewer);
             break;
+#ifndef Q_OS_ANDROID
         case WaveformWidgetType::AllShaderTexturedFiltered:
             widget = new allshader::WaveformWidgetTexturedFiltered(viewer->getGroup(), viewer);
             break;
@@ -1288,6 +1296,7 @@ WaveformWidgetAbstract* WaveformWidgetFactory::createWaveformWidget(
         case WaveformWidgetType::AllShaderTexturedStacked:
             widget = new allshader::WaveformWidgetTexturedStacked(viewer->getGroup(), viewer);
             break;
+#endif
 #else
         case WaveformWidgetType::QtSimpleWaveform:
             widget = new QtSimpleWaveformWidget(viewer->getGroup(), viewer);

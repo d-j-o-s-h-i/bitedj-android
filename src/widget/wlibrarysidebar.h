@@ -2,6 +2,7 @@
 
 #include <QBasicTimer>
 #include <QModelIndex>
+#include <QPointF>
 #include <QStringList>
 #include <QTreeView>
 
@@ -22,6 +23,10 @@ class WLibrarySidebar : public QTreeView, public WBaseWidget {
     void dropEvent(QDropEvent * event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
+#ifdef Q_OS_ANDROID
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+#endif
     void focusInEvent(QFocusEvent* event) override;
     void timerEvent(QTimerEvent* event) override;
     void toggleSelectedItem();
@@ -60,4 +65,8 @@ class WLibrarySidebar : public QTreeView, public WBaseWidget {
     QBasicTimer m_expandTimer;
     QModelIndex m_hoverIndex;
     QStringList m_hiddenFeatureTitles;
+#ifdef Q_OS_ANDROID
+    bool m_touchPressPending = false;
+    QPointF m_touchPressPosition;
+#endif
 };

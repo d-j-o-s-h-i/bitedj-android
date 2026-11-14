@@ -20,6 +20,9 @@
 #ifdef __PORTMIDI__
 #include "controllers/midi/portmidienumerator.h"
 #endif
+#ifdef Q_OS_ANDROID
+#include "controllers/midi/androidmidienumerator.h"
+#endif
 
 #ifdef __HSS1394__
 #include "controllers/midi/hss1394enumerator.h"
@@ -219,6 +222,9 @@ void ControllerManager::slotInitialize() {
 #ifdef __PORTMIDI__
     m_enumerators.append(new PortMidiEnumerator());
 #endif
+#ifdef Q_OS_ANDROID
+    m_enumerators.append(new AndroidMidiEnumerator(m_pConfig));
+#endif
 #ifdef __HSS1394__
     m_enumerators.append(new Hss1394Enumerator(m_pConfig));
 #endif
@@ -401,6 +407,18 @@ void ControllerManager::slotSetUpDevices() {
 
         // The filename for this device name.
         QString deviceName = sanitizeDeviceName(name);
+#ifdef Q_OS_ANDROID
+        const bool isFlx4 = name.contains("DDJ-FLX4");
+        if (pController->getCategory() == "Android USB MIDI" &&
+                (name.contains("DDJ-FLX2") || isFlx4) &&
+                !m_pConfig->exists(ConfigKey("[Controller]", deviceName)) &&
+                !m_pConfig->exists(ConfigKey(kSettingsGroup, deviceName))) {
+            m_pConfig->set(ConfigKey("[Controller]", deviceName), ConfigValue(1));
+            m_pConfig->set(ConfigKey(kSettingsGroup, deviceName),
+                    ConfigValue(isFlx4 ? "Pioneer-DDJ-FLX4.midi.xml"
+                                       : "Pioneer-DDJ-FLX2.midi.xml"));
+        }
+#endif
 
         // Check if device is enabled
         if (!m_pConfig->getValue(ConfigKey("[Controller]", deviceName), 0)) {

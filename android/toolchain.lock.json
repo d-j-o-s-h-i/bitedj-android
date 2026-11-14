@@ -1,0 +1,32 @@
+{
+  "qt": {
+    "version": "6.8.3",
+    "modules": ["qt5compat", "qtshadertools", "qtimageformats"],
+    "repository": "https://download.qt.io/online/qtsdkrepository",
+    "installer": "aqtinstall==3.3.0",
+    "base_source": {
+      "url": "https://download.qt.io/archive/qt/6.8/6.8.3/submodules/qtbase-everywhere-src-6.8.3.tar.xz",
+      "sha256": "56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80"
+    }
+  },
+  "ndk": {
+    "version": "27.2.12479018",
+    "directory": "android-ndk-r27c",
+    "url": "https://dl.google.com/android/repository/android-ndk-r27c-linux.zip",
+    "sha1": "090e8083a715fdb1a3e402d0763c388abb03fb4e"
+  },
+  "build_tools": {
+    "version": "35.0.0",
+    "url": "https://dl.google.com/android/repository/build-tools_r35_linux.zip",
+    "sha1": "2cfaa0bbb2336e9ec18ed3ecea84fa2e2af607bc"
+  },
+  "abi": "arm64-v8a",
+  "min_sdk": 33,
+  "target_sdk": 35,
+  "compile_sdk": 35,
+  "jdk_major": 21,
+  "native_api": 33,
+  "agp": "8.6.0",
+  "gradle": "8.10",
+  "androidx_core": "1.13.1"
+}

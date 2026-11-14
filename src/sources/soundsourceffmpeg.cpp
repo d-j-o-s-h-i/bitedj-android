@@ -11,6 +11,9 @@ extern "C" {
 
 #include "util/logger.h"
 #include "util/sample.h"
+#ifdef Q_OS_ANDROID
+#include "platform/android/androidplatform.h"
+#endif
 
 #if !defined(VERBOSE_DEBUG_LOG)
 #define VERBOSE_DEBUG_LOG false
@@ -565,8 +568,28 @@ SoundSource::OpenResult SoundSourceFFmpeg::tryOpen(
         const OpenParams& params) {
     // Open input
     {
-        AVFormatContext* pavInputFormatContext =
-                openInputFile(getLocalFileName());
+        AVFormatContext* pavInputFormatContext = nullptr;
+#ifdef Q_OS_ANDROID
+        if (getUrl().scheme() == QLatin1String("content")) {
+            m_documentAvio = std::make_unique<android::DocumentAvio>(
+                    android::AndroidPlatform::openDocument(getLocalFileName()));
+            if (!m_documentAvio->context()) {
+                return OpenResult::Failed;
+            }
+            pavInputFormatContext = avformat_alloc_context();
+            if (!pavInputFormatContext) {
+                return OpenResult::Failed;
+            }
+            pavInputFormatContext->pb = m_documentAvio->context();
+            pavInputFormatContext->flags |= AVFMT_FLAG_CUSTOM_IO;
+            if (avformat_open_input(&pavInputFormatContext, nullptr, nullptr, nullptr) < 0) {
+                return OpenResult::Failed;
+            }
+        } else
+#endif
+        {
+            pavInputFormatContext = openInputFile(getLocalFileName());
+        }
         if (pavInputFormatContext == nullptr) {
             kLogger.warning()
                     << "Failed to open input file"
@@ -954,6 +977,9 @@ void SoundSourceFFmpeg::close() {
     m_pSwrContext.close();
     m_pavCodecContext.close();
     m_pavInputFormatContext.close();
+#ifdef Q_OS_ANDROID
+    m_documentAvio.reset();
+#endif
     m_pavStream = nullptr;
 }
 
@@ -1058,8 +1084,11 @@ bool SoundSourceFFmpeg::adjustCurrentPosition(SINT startIndex) {
     avcodec_flush_buffers(m_pavCodecContext);
 
     // Seek to new position
-    const int64_t seekTimestamp =
-            convertFrameIndexToStreamTime(*m_pavStream, seekIndex);
+    // Preroll at the beginning may precede the first demuxed packet. FFmpeg's
+    // MP3 generic index cannot seek backwards before timestamp zero and returns
+    // -1, making the initial one-frame read test fail for an otherwise valid MP3.
+    const int64_t seekTimestamp = std::max<int64_t>(0,
+            convertFrameIndexToStreamTime(*m_pavStream, seekIndex));
     int av_seek_frame_result = av_seek_frame(
             m_pavInputFormatContext,
             m_pavStream->index,

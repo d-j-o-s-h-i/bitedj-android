@@ -1,7 +1,9 @@
 # Protobuf
 
 # first try the package provided config
-find_package(Protobuf CONFIG)
+if(NOT ANDROID)
+  find_package(Protobuf CONFIG)
+endif()
 if(NOT Protobuf_FOUND)
   # Fall back to the CMake provide module
   find_package(Protobuf MODULE REQUIRED)

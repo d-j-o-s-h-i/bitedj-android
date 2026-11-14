@@ -1,6 +1,9 @@
 #include "widget/wlibrarysidebar.h"
 
+#include <QGuiApplication>
 #include <QHeaderView>
+#include <QMouseEvent>
+#include <QStyleHints>
 #include <QUrl>
 #include <QtDebug>
 
@@ -384,6 +387,17 @@ void WLibrarySidebar::mousePressEvent(QMouseEvent* event) {
     if (event->buttons().testFlag(Qt::RightButton)) {
         return;
     }
+#ifdef Q_OS_ANDROID
+    if (event->source() == Qt::MouseEventSynthesizedByQt) {
+        // Delay the selection and 300 ms activation timer until a finger tap
+        // completes. A slow scroll must not select or open a library source.
+        m_touchPressPending = true;
+        m_touchPressPosition = event->position();
+        event->accept();
+        return;
+    }
+    m_touchPressPending = false;
+#endif
     QTreeView::mousePressEvent(event);
 
     // Touch ergonomics: tapping a leaf row collapses the sidebar so the
@@ -402,6 +416,35 @@ void WLibrarySidebar::mousePressEvent(QMouseEvent* event) {
                 0);
     }
 }
+
+#ifdef Q_OS_ANDROID
+void WLibrarySidebar::mouseMoveEvent(QMouseEvent* event) {
+    if (m_touchPressPending && event->source() == Qt::MouseEventSynthesizedByQt) {
+        event->accept();
+        return;
+    }
+    QTreeView::mouseMoveEvent(event);
+}
+
+void WLibrarySidebar::mouseReleaseEvent(QMouseEvent* event) {
+    if (m_touchPressPending && event->source() == Qt::MouseEventSynthesizedByQt) {
+        m_touchPressPending = false;
+        const QPointF distance = event->position() - m_touchPressPosition;
+        const int tapDistance = QGuiApplication::styleHints()->startDragDistance();
+        if (qAbs(distance.x()) <= tapDistance && qAbs(distance.y()) <= tapDistance) {
+            QMouseEvent press(QEvent::MouseButtonPress,
+                    event->position(), event->scenePosition(), event->globalPosition(),
+                    Qt::LeftButton, Qt::LeftButton, event->modifiers(), event->source());
+            QTreeView::mousePressEvent(&press);
+            QTreeView::mouseReleaseEvent(event);
+        } else {
+            event->accept();
+        }
+        return;
+    }
+    QTreeView::mouseReleaseEvent(event);
+}
+#endif
 
 void WLibrarySidebar::focusInEvent(QFocusEvent* event) {
     // Clear the current index, i.e. remove the focus indicator

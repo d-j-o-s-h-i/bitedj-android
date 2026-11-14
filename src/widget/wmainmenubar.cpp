@@ -80,6 +80,11 @@ WMainMenuBar::WMainMenuBar(QWidget* pParent, UserSettingsPointer pConfig,
           m_pConfig(pConfig),
           m_pKbdConfig(pKbdConfig) {
     setObjectName(QStringLiteral("MainMenu"));
+#ifdef Q_OS_ANDROID
+    // Keep menus in the Qt window so they are reachable by touch.
+    setNativeMenuBar(false);
+    m_pConfig->setValue(ConfigKey("[Config]", "hide_menubar"), 0);
+#endif
     initialize();
 }
 
@@ -209,7 +214,7 @@ void WMainMenuBar::initialize() {
     connectMenuToSlotShowMenuBar(pViewMenu);
 #endif
 
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(Q_OS_ANDROID)
     // Show menu bar
     QString showMenuBarTitle = tr("Auto-hide menu bar");
     QString showMenuBarText = tr("Auto-hide the main menu bar when it's not used.");

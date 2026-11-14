@@ -78,6 +78,8 @@ class SoundManager : public QObject {
     SoundManagerConfig getConfig() const;
     SoundDeviceStatus setConfig(const SoundManagerConfig& config);
     void checkConfig();
+    // Management/UI thread only. Closes streams before releasing engine buffers.
+    void stopDevices();
 
     void onDeviceOutputCallback(const SINT iFramesPerBuffer);
 

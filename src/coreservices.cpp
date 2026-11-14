@@ -75,7 +75,7 @@ void clearHelper(std::shared_ptr<T>& ref_ptr, const char* name) {
 }
 
 
-#if defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
 QLocale localeFromXkbSymbol(const QString& xkbLayout) {
     // This maps XKB layouts to locales of keyboard mappings that are shipped with Mixxx
     static const QMap<QString, QLocale> xkbToLocaleMap = {
@@ -124,7 +124,7 @@ inline bool isXfceSession() {
 // QGuiApplication::inputMethod() does not work with GNOME and XFCE
 // https://bugreports.qt.io/browse/QTBUG-137302
 inline QLocale inputLocale() {
-#if defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     if (isGnomeSession()) {
         // In a Gnome session QGuiApplication::inputMethod() is not necessarily correct
         // https://github.com/mixxxdj/mixxx/issues/14838
