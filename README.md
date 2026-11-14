@@ -2,7 +2,8 @@
 
 **[Download the APK](../../releases/latest/download/BiteDj-Android-djoshi-1.0-5.apk)** (very alpha, unofficial port of [BiteDJ](https://github.com/TeamDeckshark/bitedj))
 
-Experimental Android port of BiteDJ, a DJ app built on
+Experimental Android port of [BiteDJ](https://github.com/TeamDeckshark/bitedj) by
+[Deckshark](https://github.com/TeamDeckshark), a DJ app built on
 [Mixxx](https://github.com/mixxxdj/mixxx) with a widgets-only appliance UI.
 
 The goal: **turn a DJ controller into a standalone unit, with a phone as its
